@@ -75,7 +75,7 @@ const products: Product[] = response.data;
     
     // Distribute commissions if sponsor exists
     if (sponsor) {
-      distributeCommissions(sponsor, product, commissionStructure);
+      await distributeCommissions(sponsor, product, commissionStructure);
     }
     
     return true;
@@ -86,7 +86,7 @@ const products: Product[] = response.data;
 };
 
 // Record the purchase transaction
-const recordPurchase = (
+const recordPurchase = async (
   userId: string, 
   product: Product, 
   paymentId: string
@@ -104,7 +104,7 @@ const recordPurchase = (
   };
   
   // Add purchase transaction (casting to Transaction as addTransaction expects this type)
-  addTransaction(purchaseTransaction as Transaction);
+ await addTransaction(purchaseTransaction as Transaction);
   
   console.log(`Recorded purchase for user ${userId}: ${product.name}`);
 };
@@ -140,7 +140,7 @@ const distributeCommissions = async (
     };
     
     // Add the commission transaction
-    addTransaction(retailProfitTransaction);
+    await addTransaction(retailProfitTransaction);
     
     // Create TDS deduction transaction (for record-keeping)
     const tdsTransaction: Transaction = {
@@ -152,7 +152,7 @@ const distributeCommissions = async (
       date: new Date().toISOString(),
       status: 'completed'
     };
-    addTransaction(tdsTransaction);
+    await addTransaction(tdsTransaction);
     
     // Create admin fee transaction (for record-keeping)
     const adminFeeTransaction: Transaction = {
@@ -164,7 +164,7 @@ const distributeCommissions = async (
       date: new Date().toISOString(),
       status: 'completed'
     };
-    addTransaction(adminFeeTransaction);
+    await addTransaction(adminFeeTransaction);
     
     // Create repurchase allocation transaction (for record-keeping)
     const repurchaseTransaction: Transaction = {
@@ -176,13 +176,13 @@ const distributeCommissions = async (
       date: new Date().toISOString(),
       status: 'completed'
     };
-    addTransaction(repurchaseTransaction);
+    await addTransaction(repurchaseTransaction);
     
     console.log(`Distributed retail profit commission to ${sponsor.name}: ${netCommissionAmount}`);
     
     // Process level commissions for upline members if level commission rates are defined
     if (commissionStructure.levelCommissions && Object.keys(commissionStructure.levelCommissions).length > 0) {
-      processLevelCommissions(sponsor, product, commissionStructure);
+      await processLevelCommissions(sponsor, product, commissionStructure);
     }
     
     // Check if this is a repurchase and distribute repurchase bonus
@@ -196,7 +196,7 @@ const distributeCommissions = async (
         console.log(`This is a repurchase of ${product.name} by ${currentUser.name}`);
         
         // Add repurchase bonus to sponsor
-        addRepurchaseBonus(sponsor.id, product.price, product.name);
+        await addRepurchaseBonus(sponsor.id, product.price, product.name);
       }
     }
     
@@ -224,7 +224,7 @@ const distributeCommissions = async (
         console.log(`Adding ${pairsToCredit} team matching pairs for ${sponsor.name}`);
         
         // Add team matching bonus
-        addTeamMatchingBonus(sponsor.id, pairsToCredit);
+        await addTeamMatchingBonus(sponsor.id, pairsToCredit);
       }
       
       // For top performers, add a royalty bonus (simplified approach)
@@ -250,7 +250,7 @@ const distributeCommissions = async (
           console.log(`Adding royalty bonus for ${sponsor.name} based on turnover: ${turnover}`);
           
           // Add royalty bonus
-          addRoyaltyBonus(sponsor.id, turnover);
+         await addRoyaltyBonus(sponsor.id, turnover);
         }
       }
     }
