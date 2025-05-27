@@ -1238,10 +1238,10 @@ export const addReferralBonusTransaction = async (sponsorId: string, referredUse
   };
 
   // Add all transactions
-  addTransaction(transaction);
-  addTransaction(tdsTransaction);
-  addTransaction(adminTransaction);
-  addTransaction(repurchaseTransaction);
+  await addTransaction(transaction);
+  await addTransaction(tdsTransaction);
+  await addTransaction(adminTransaction);
+  await addTransaction(repurchaseTransaction);
 
   // Get the admin user (for admin fee allocation)
   const allUsers = await getAllUsers();
@@ -1260,7 +1260,7 @@ export const addReferralBonusTransaction = async (sponsorId: string, referredUse
       relatedUserId: sponsorId
     };
 
-    addTransaction(adminBonusTransaction);
+   await addTransaction(adminBonusTransaction);
 
     // Update admin's dashboard stats
     const adminDashboardStats = getUserDashboardStats(adminUser.id);
@@ -1652,7 +1652,7 @@ const checkAndAddMilestoneRewards = async (userId: string, newPairs: number): Pr
           status: 'completed'
         };
 
-        addTransaction(rewardTransaction);
+        await addTransaction(rewardTransaction);
 
         console.log(`Added milestone reward for ${userId}: ${rewardDescription}`);
       }
