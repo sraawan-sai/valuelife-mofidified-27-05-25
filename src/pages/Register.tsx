@@ -476,16 +476,16 @@ const Register: React.FC = () => {
 
                 {/* Sponsor ID Section */}
                 <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-                  <div className="font-semibold text-gray-800 mb-2">Register with Position ID</div>
+                  <div className="font-semibold text-gray-800 mb-2">Register with Referral Code</div>
                   <Input
                     id="sponsorId"
                     name="sponsorId"
                     type="text"
-                    label="Position ID"
+                    label="referral code"
                     value={formData.sponsorId}
                     onChange={handleChange}
                     error={errors.sponsorId}
-                    placeholder="Enter your Position ID or referral code"
+                    placeholder="Enter your Referral Code or Position ID"
                     leftIcon={<Users className="h-5 w-5" />}
                   />
                   {sponsorInfo && (
@@ -531,9 +531,9 @@ const Register: React.FC = () => {
                 </div>
                 {/* Referral Code Section */}
                 <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-                  <div className="font-semibold text-gray-800 mb-2">Register with Referral Code</div>
+                  <div className="font-semibold text-gray-800 mb-2">Register with Position ID</div>
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-700">Referral Code</label>
+                    <label className="text-sm font-medium text-gray-700">Position ID</label>
                     <button
                       type="button"
                       onClick={() => setUseManualReferral(!useManualReferral)}
@@ -550,7 +550,7 @@ const Register: React.FC = () => {
                       value={formData.manualReferralCode}
                       onChange={handleChange}
                       error={errors.manualReferralCode}
-                      placeholder="Enter referral code"
+                      placeholder="Enter Position ID"
                       leftIcon={<Users className="h-5 w-5" />}
                     />
                   ) : (
