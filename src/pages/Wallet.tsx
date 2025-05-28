@@ -3,13 +3,13 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import MainLayout from '../components/layout/MainLayout';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { Wallet as WalletIcon, Clock, ArrowDown, ArrowUp, Filter, RefreshCw, AlertTriangle, Users, BarChart3, Award, Repeat, Gift } from 'lucide-react';
+import { Wallet as WalletIcon, Clock, ArrowDown, ArrowUp, Filter, RefreshCw, AlertTriangle, Users, BarChart3, Award, Repeat, Gift, DollarSign } from 'lucide-react';
 import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
 import TransactionList from '../components/dashboard/TransactionList';
 import WithdrawFunds from '../components/wallet/WithdrawFunds';
 import { getCurrentUser, getUserDashboardStats } from '../utils/localStorageService';
-import { Wallet as WalletType, DashboardStats, Transaction, User } from '../types';
+import { Wallet as WalletType, DashboardStats, Transaction, User, TransactionType } from '../types';
 import KycRequired from '../components/auth/KycRequired';
 import { formatCurrency, currencySymbol } from '../utils/currencyFormatter';
 import { fetchWalletData, processTransaction, WalletData } from '../services/walletService';
@@ -23,6 +23,7 @@ const Wallet: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   const loadWalletData = async () => {
     setIsLoading(true);
@@ -35,6 +36,10 @@ const Wallet: React.FC = () => {
       if (!user?.id) {
         throw new Error('User not found');
       }
+
+      // Check if user is admin
+      const isAdminAuthenticated = localStorage.getItem('adminAuthenticated') === 'true';
+      setIsAdmin(isAdminAuthenticated);
 
       const [data, stats] = await Promise.all([
         fetchWalletData(user.id),
@@ -134,7 +139,16 @@ const Wallet: React.FC = () => {
                   <h2 className="text-lg font-medium text-neutral-700">Total Earnings</h2>
                   <div className="mt-2">
                     <span className="text-3xl font-bold text-success-600">
-                      ₹{(dashboardStats?.totalEarnings || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {!isAdmin ? 
+                        formatCurrency(
+                          (dashboardStats?.earningsByType?.referral_bonus || 0) + 
+                          (dashboardStats?.earningsByType?.team_matching || 0) +
+                          (dashboardStats?.earningsByType?.repurchase_bonus || 0) +
+                          (dashboardStats?.earningsByType?.royalty_bonus || 0) +
+                          (dashboardStats?.earningsByType?.award_reward || 0)
+                        ) :
+                        formatCurrency(dashboardStats?.totalEarnings || 0)
+                      }
                     </span>
                   </div>
                 </div>
@@ -153,13 +167,32 @@ const Wallet: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-neutral-600">Total Earnings</span>
                   <span className="font-semibold text-success-600">
-                    {formatCurrency(dashboardStats?.totalEarnings || 0)}
+                    {!isAdmin ? 
+                      formatCurrency(
+                        (dashboardStats?.earningsByType?.referral_bonus || 0) + 
+                        (dashboardStats?.earningsByType?.team_matching || 0) +
+                        (dashboardStats?.earningsByType?.repurchase_bonus || 0) +
+                        (dashboardStats?.earningsByType?.royalty_bonus || 0) +
+                        (dashboardStats?.earningsByType?.award_reward || 0)
+                      ) :
+                      formatCurrency(dashboardStats?.totalEarnings || 0)
+                    }
                   </span>
                 </div>
                 {/* Total Transactions */}
                 <div className="flex justify-between items-center">
                   <span className="text-neutral-600">Total Transactions</span>
-                  <span className="font-semibold">{walletData?.transactions?.length || 0}</span>
+                  <span className="font-semibold">
+                    {!isAdmin ? 
+                      // For regular users, count only referral and team matching transactions
+                      walletData?.transactions?.filter(tx => {
+                        const txType = tx.type as TransactionType;
+                        return txType === 'referral_bonus' || txType === 'team_matching';
+                      }).length || 0 :
+                      // For admin, show all transactions
+                      walletData?.transactions?.length || 0
+                    }
+                  </span>
                 </div>
                 {/* Pending Withdrawals */}
                 <div className="flex justify-between items-center">
@@ -209,17 +242,6 @@ const Wallet: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Royalty Bonus */}
-                <div className="flex justify-between items-center p-3 bg-white/60 rounded-lg">
-                  <div className="flex items-center">
-                    <Award className="h-5 w-5 text-purple-500 mr-2" />
-                    <span>Royalty Bonus</span>
-                  </div>
-                  <span className="font-semibold">
-                    {formatCurrency(dashboardStats?.earningsByType?.royalty_bonus || 0)}
-                  </span>
-                </div>
-
                 {/* Repurchase Bonus */}
                 <div className="flex justify-between items-center p-3 bg-white/60 rounded-lg">
                   <div className="flex items-center">
@@ -228,6 +250,17 @@ const Wallet: React.FC = () => {
                   </div>
                   <span className="font-semibold">
                     {formatCurrency(dashboardStats?.earningsByType?.repurchase_bonus || 0)}
+                  </span>
+                </div>
+
+                {/* Royalty Bonus */}
+                <div className="flex justify-between items-center p-3 bg-white/60 rounded-lg">
+                  <div className="flex items-center">
+                    <Award className="h-5 w-5 text-purple-500 mr-2" />
+                    <span>Royalty Bonus</span>
+                  </div>
+                  <span className="font-semibold">
+                    {formatCurrency(dashboardStats?.earningsByType?.royalty_bonus || 0)}
                   </span>
                 </div>
 
@@ -241,6 +274,19 @@ const Wallet: React.FC = () => {
                     {formatCurrency(dashboardStats?.earningsByType?.award_reward || 0)}
                   </span>
                 </div>
+
+                {/* Purchase Amount - Admin only */}
+                {isAdmin && (
+                  <div className="flex justify-between items-center p-3 bg-white/60 rounded-lg">
+                    <div className="flex items-center">
+                      <DollarSign className="h-5 w-5 text-purple-500 mr-2" />
+                      <span>Purchase Amount</span>
+                    </div>
+                    <span className="font-semibold">
+                      {formatCurrency(dashboardStats?.earningsByType?.retail_profit || 0)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </Card>
@@ -294,11 +340,16 @@ const Wallet: React.FC = () => {
               <div className="divide-y divide-neutral-200">
                 {walletData.transactions
                   .filter(tx => {
-                    if (filterStatus === 'all') return true;
-                    if (filterStatus === 'completed' && tx.type !== 'withdrawal') return true;
-                    if (filterStatus === 'pending' && tx.type === 'withdrawal') return true;
-                    return false;
+                    // First apply status filter
+                    if (filterStatus !== 'all') {
+                      if (filterStatus === 'completed' && tx.type === 'withdrawal') return false;
+                      if (filterStatus === 'pending' && tx.type !== 'withdrawal') return false;
+                    }
+                    
+                    // For both admin and regular users, show all relevant transactions
+                    return true;
                   })
+                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Sort by date, newest first
                   .map(transaction => (
                     <div key={transaction.id} className="py-4 flex justify-between items-center">
                       <div>
@@ -306,11 +357,10 @@ const Wallet: React.FC = () => {
                         <p className="text-sm text-neutral-500">{new Date(transaction.date).toLocaleDateString()}</p>
                       </div>
                       <div className={`font-semibold ${
-                        transaction.type === 'credit' ? 'text-success-600' : 
                         transaction.type === 'withdrawal' ? 'text-warning-600' : 
-                        'text-neutral-900'
+                        'text-success-600'
                       }`}>
-                        {transaction.type === 'credit' ? '+' : '-'}
+                        {transaction.type === 'withdrawal' ? '-' : '+'}
                         {formatCurrency(transaction.amount)}
                       </div>
                     </div>

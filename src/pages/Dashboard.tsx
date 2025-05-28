@@ -15,11 +15,13 @@ const Dashboard: React.FC = () => {
   const [userName, setUserName] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [tdsFromTransactions, setTdsFromTransactions] = useState<number>(0);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchDashboardStats = async () => {
       const loggedInUserId = getFromStorage<string>('logged_in_user');
       const currentUser = getCurrentUser();
+      const isAdminAuthenticated = localStorage.getItem('adminAuthenticated') === 'true';
 
       if (loggedInUserId && currentUser) {
         try {
@@ -39,6 +41,7 @@ const Dashboard: React.FC = () => {
           setTdsFromTransactions(calculatedTds);
           setStats(userDashboardStats);
           setUserName(currentUser.name);
+          setIsAdmin(isAdminAuthenticated);
         } catch (err) {
           console.error('Failed to load dashboard stats:', err);
         }
@@ -94,7 +97,16 @@ const Dashboard: React.FC = () => {
           <StatCard
             title="Total Earnings"
             icon={<Wallet className="h-6 w-6 text-green-500 animate-pulse" />}
-            value={formatCurrency(stats?.totalEarnings || 0)}
+            value={!isAdmin ? 
+              formatCurrency(
+                (stats?.earningsByType?.referral_bonus || 0) + 
+                (stats?.earningsByType?.team_matching || 0) +
+                (stats?.earningsByType?.repurchase_bonus || 0) +
+                (stats?.earningsByType?.royalty_bonus || 0) +
+                (stats?.earningsByType?.award_reward || 0)
+              ) :
+              formatCurrency(stats?.totalEarnings || 0)
+            }
             subtitle={`${formatCurrency(stats?.earningsByType?.referral_bonus || 0)} from referrals`}
             gradientClass='bg-gradient-to-tr from-pink-400 via-yellow-300 via-green-300 via-blue-300 to-purple-400'
           />
@@ -176,8 +188,12 @@ const Dashboard: React.FC = () => {
                 <div className="flex-grow">
                   <div className="font-bold text-neutral-800">Referral Bonus</div>
                   <div className="text-xs text-neutral-500">₹3,000 per direct referral</div>
+                  <div className="text-sm font-semibold text-success-600 mt-1">
+                    Earned: {formatCurrency(stats?.earningsByType?.referral_bonus || 0)}
+                  </div>
                 </div>
               </div>
+
               {/* Team Matching */}
               <div className="flex items-center bg-white rounded-xl shadow hover:shadow-lg transition p-4 border border-neutral-100">
                 <div className="bg-green-500 p-3 rounded-full flex items-center justify-center mr-4">
@@ -194,18 +210,12 @@ const Dashboard: React.FC = () => {
                   <div className="text-xs text-neutral-500 mt-1">
                     First matching bonus: ₹{commissionStructure?.firstMatchingBonus || 500}
                   </div>
+                  <div className="text-sm font-semibold text-success-600 mt-1">
+                    Earned: {formatCurrency(stats?.earningsByType?.team_matching || 0)}
+                  </div>
                 </div>
               </div>
-              {/* Royalty Bonus */}
-              <div className="flex items-center bg-white rounded-xl shadow hover:shadow-lg transition p-4 border border-neutral-100">
-                <div className="bg-purple-500 p-3 rounded-full flex items-center justify-center mr-4">
-                  <Award className="h-7 w-7 text-white" />
-                </div>
-                <div className="flex-grow">
-                  <div className="font-bold text-neutral-800">Royalty Bonus</div>
-                  <div className="text-xs text-neutral-500">2% of company turnover</div>
-                </div>
-              </div>
+
               {/* Repurchase Bonus */}
               <div className="flex items-center bg-white rounded-xl shadow hover:shadow-lg transition p-4 border border-neutral-100">
                 <div className="bg-blue-500 p-3 rounded-full flex items-center justify-center mr-4">
@@ -214,8 +224,26 @@ const Dashboard: React.FC = () => {
                 <div className="flex-grow">
                   <div className="font-bold text-neutral-800">Repurchase Bonus</div>
                   <div className="text-xs text-neutral-500">3% repurchase bonus</div>
+                  <div className="text-sm font-semibold text-success-600 mt-1">
+                    Earned: {formatCurrency(stats?.earningsByType?.repurchase_bonus || 0)}
+                  </div>
                 </div>
               </div>
+
+              {/* Royalty Bonus */}
+              <div className="flex items-center bg-white rounded-xl shadow hover:shadow-lg transition p-4 border border-neutral-100">
+                <div className="bg-purple-500 p-3 rounded-full flex items-center justify-center mr-4">
+                  <Award className="h-7 w-7 text-white" />
+                </div>
+                <div className="flex-grow">
+                  <div className="font-bold text-neutral-800">Royalty Bonus</div>
+                  <div className="text-xs text-neutral-500">2% of company turnover</div>
+                  <div className="text-sm font-semibold text-success-600 mt-1">
+                    Earned: {formatCurrency(stats?.earningsByType?.royalty_bonus || 0)}
+                  </div>
+                </div>
+              </div>
+
               {/* Awards & Rewards */}
               <div className="flex items-center bg-white rounded-xl shadow hover:shadow-lg transition p-4 border border-neutral-100">
                 <div className="bg-indigo-500 p-3 rounded-full flex items-center justify-center mr-4">
@@ -224,18 +252,27 @@ const Dashboard: React.FC = () => {
                 <div className="flex-grow">
                   <div className="font-bold text-neutral-800">Awards & Rewards</div>
                   <div className="text-xs text-neutral-500">Based on achievements</div>
+                  <div className="text-sm font-semibold text-success-600 mt-1">
+                    Earned: {formatCurrency(stats?.earningsByType?.award_reward || 0)}
+                  </div>
                 </div>
               </div>
-              {/* Withdrawals */}
-              <div className="flex items-center bg-white rounded-xl shadow hover:shadow-lg transition p-4 border border-neutral-100">
-                <div className="bg-orange-500 p-3 rounded-full flex items-center justify-center mr-4">
-                  <ArrowDownLeft className="h-7 w-7 text-white" />
+
+              {/* Purchase Amount - Admin Only */}
+              {isAdmin && (
+                <div className="flex items-center bg-white rounded-xl shadow hover:shadow-lg transition p-4 border border-neutral-100">
+                  <div className="bg-orange-500 p-3 rounded-full flex items-center justify-center mr-4">
+                    <DollarSign className="h-7 w-7 text-white" />
+                  </div>
+                  <div className="flex-grow">
+                    <div className="font-bold text-neutral-800">Purchase Amount</div>
+                    <div className="text-xs text-neutral-500">Total purchase earnings</div>
+                    <div className="text-sm font-semibold text-success-600 mt-1">
+                      Earned: {formatCurrency(stats?.earningsByType?.retail_profit || 0)}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-grow">
-                  <div className="font-bold text-neutral-800">Withdrawals</div>
-                  <div className="text-xs text-neutral-500">Completed withdrawals</div>
-                </div>
-              </div>
+              )}
             </div>
           </Card>
         </div>
