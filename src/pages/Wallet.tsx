@@ -17,7 +17,7 @@ import toast from 'react-hot-toast';
 
 const Wallet: React.FC = () => {
   const [showWithdrawForm, setShowWithdrawForm] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'completed' | 'pending'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'completed' | 'pending' | 'referrals'>('all');
   const [walletData, setWalletData] = useState<WalletData | null>(null);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -163,22 +163,6 @@ const Wallet: React.FC = () => {
             <div className="p-6">
               <h3 className="text-lg font-medium text-neutral-700 mb-4">Quick Stats</h3>
               <div className="space-y-4">
-                {/* Total Earnings */}
-                <div className="flex justify-between items-center">
-                  <span className="text-neutral-600">Total Earnings</span>
-                  <span className="font-semibold text-success-600">
-                    {!isAdmin ? 
-                      formatCurrency(
-                        (dashboardStats?.earningsByType?.referral_bonus || 0) + 
-                        (dashboardStats?.earningsByType?.team_matching || 0) +
-                        (dashboardStats?.earningsByType?.repurchase_bonus || 0) +
-                        (dashboardStats?.earningsByType?.royalty_bonus || 0) +
-                        (dashboardStats?.earningsByType?.award_reward || 0)
-                      ) :
-                      formatCurrency(dashboardStats?.totalEarnings || 0)
-                    }
-                  </span>
-                </div>
                 {/* Total Transactions */}
                 <div className="flex justify-between items-center">
                   <span className="text-neutral-600">Total Transactions</span>
@@ -333,6 +317,13 @@ const Wallet: React.FC = () => {
                 >
                   Pending
                 </Button>
+                <Button
+                  variant={filterStatus === 'referrals' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilterStatus('referrals')}
+                >
+                  Referrals
+                </Button>
               </div>
             </div>
             
@@ -341,12 +332,19 @@ const Wallet: React.FC = () => {
                 {walletData.transactions
                   .filter(tx => {
                     // First apply status filter
-                    if (filterStatus !== 'all') {
-                      if (filterStatus === 'completed' && tx.type === 'withdrawal') return false;
-                      if (filterStatus === 'pending' && tx.type !== 'withdrawal') return false;
+                    if (filterStatus === 'completed') return tx.status === 'completed';
+                    if (filterStatus === 'pending') return tx.status === 'pending';
+                    if (filterStatus === 'referrals') {
+                      // Show both direct referral bonuses and team matching bonuses
+                      return tx.type === 'referral_bonus' || tx.type === 'team_matching';
                     }
                     
-                    // For both admin and regular users, show all relevant transactions
+                    // For regular users, show all transactions except retail_profit
+                    if (!isAdmin) {
+                      return tx.type !== 'retail_profit';
+                    }
+                    
+                    // For admin, show all transactions
                     return true;
                   })
                   .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Sort by date, newest first
@@ -354,14 +352,23 @@ const Wallet: React.FC = () => {
                     <div key={transaction.id} className="py-4 flex justify-between items-center">
                       <div>
                         <p className="font-medium text-neutral-900">{transaction.description}</p>
-                        <p className="text-sm text-neutral-500">{new Date(transaction.date).toLocaleDateString()}</p>
+                        <p className="text-sm text-neutral-500">
+                          {new Date(transaction.date).toLocaleDateString()}
+                          {transaction.relatedUserId && transaction.type === 'referral_bonus' && (
+                            <span className="ml-2 text-blue-500">• Direct Referral</span>
+                          )}
+                          {transaction.type === 'team_matching' && (
+                            <span className="ml-2 text-green-500">• Team Matching</span>
+                          )}
+                        </p>
                       </div>
                       <div className={`font-semibold ${
+                        transaction.amount < 0 ? 'text-error-600' : 
                         transaction.type === 'withdrawal' ? 'text-warning-600' : 
                         'text-success-600'
                       }`}>
-                        {transaction.type === 'withdrawal' ? '-' : '+'}
-                        {formatCurrency(transaction.amount)}
+                        {transaction.amount < 0 ? '-' : '+'}
+                        {formatCurrency(Math.abs(transaction.amount))}
                       </div>
                     </div>
                   ))}
