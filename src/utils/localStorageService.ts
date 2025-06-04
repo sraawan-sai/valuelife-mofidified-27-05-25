@@ -2084,33 +2084,162 @@ export const isNetworkPositionAvailable = async (
   position: 'left' | 'right',
   isReferral: boolean = false
 ): Promise<boolean> => {
-  // Try to get the sponsor's network from API or localStorage
-  const sponsorNetworkKey = `mlm_network_members_${sponsorId}`;
-  let sponsorNetwork: NetworkMember | null = null;
-  try {
-    sponsorNetwork = await apiCall('get', `/api/db/network/${sponsorId}`);
-  } catch (e) {
-    sponsorNetwork = getFromStorage<NetworkMember>(sponsorNetworkKey);
-  }
-  if (!sponsorNetwork) return true; // If no network data, assume available
+  // Always return true since we now allow unlimited referrals
+  return true;
+};
 
-  // Helper to traverse to the correct spot
-  const getDeepestNode = (root: NetworkMember, pos: 'left' | 'right'): NetworkMember => {
-    let node = root;
-    while (node.children && node.children[pos === 'left' ? 0 : 1]) {
-      node = node.children[pos === 'left' ? 0 : 1];
+// Retroactive team matching bonus check for all users
+export const checkAndAwardAllTeamMatchingBonuses = async () => {
+  const allUsers = await getAllUsers();
+  for (const sponsor of allUsers) {
+    // Find left and right children who are active
+    const leftChild = allUsers.find(u => u.sponsorId === sponsor.distributorId && u.position === 'left' && u.active);
+    const rightChild = allUsers.find(u => u.sponsorId === sponsor.distributorId && u.position === 'right' && u.active);
+
+    if (leftChild && rightChild) {
+      // Check if sponsor already received team matching bonus for this pair
+      const transactions = await getUserTransactions(sponsor.id);
+      const hasPairBonus = transactions.some(
+        t => t.type === 'team_matching' && t.status === 'completed' && t.pairs === 1
+      );
+      if (!hasPairBonus) {
+        await addTeamMatchingBonus(sponsor.id, 1);
+      }
     }
-    return node;
-  };
-
-  if (isReferral) {
-    // For referral code, check the deepest available spot in the branch
-    const spot = getDeepestNode(sponsorNetwork, position);
-    const idx = position === 'left' ? 0 : 1;
-    return !spot.children || !spot.children[idx];
-  } else {
-    // For sponsor, check direct left/right child
-    const idx = position === 'left' ? 0 : 1;
-    return !sponsorNetwork.children || !sponsorNetwork.children[idx];
   }
-}; 
+};
+
+// Mark a user as active and check for all team matching bonuses
+export const markUserAsActiveAndCheckBonuses = async (userId: string): Promise<void> => {
+  const users = await getAllUsers();
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex === -1) return;
+  users[userIndex].active = true;
+  setToStorage(STORAGE_KEYS.USERS, users);
+  await checkAndAwardAllTeamMatchingBonuses();
+};
+
+// Debug function: Print all users and their team matching bonus status
+export const printTeamMatchingBonusStatus = async () => {
+  const allUsers = await getAllUsers();
+  for (const sponsor of allUsers) {
+    const leftChild = allUsers.find(u => u.sponsorId === sponsor.distributorId && u.position === 'left');
+    const rightChild = allUsers.find(u => u.sponsorId === sponsor.distributorId && u.position === 'right');
+    const leftActive = leftChild?.active ? '✅' : '❌';
+    const rightActive = rightChild?.active ? '✅' : '❌';
+    const transactions = await getUserTransactions(sponsor.id);
+    const hasPairBonus = transactions.some(
+      t => t.type === 'team_matching' && t.status === 'completed' && t.pairs === 1
+    );
+    const bonusStatus = hasPairBonus ? 'BONUS RECEIVED 🎉' : 'NO BONUS';
+    console.log(`Sponsor: ${sponsor.name} (${sponsor.id}) | Left: ${leftChild?.name || '-'} ${leftActive} | Right: ${rightChild?.name || '-'} ${rightActive} | ${bonusStatus}`);
+  }
+};
+
+// Debug utility: Flatten a NetworkMember tree to a users array with sponsorId, position, and active fields
+export const flattenNetworkMembersToUsers = (
+  networkMember: NetworkMember,
+  sponsorId: string | null = null,
+  position: 'left' | 'right' | undefined = undefined
+): User[] => {
+  const users: User[] = [];
+  users.push({
+    id: networkMember.id,
+    name: networkMember.name,
+    distributorId: networkMember.referralCode,
+    sponsorId: sponsorId,
+    position: position,
+    active: networkMember.active,
+    email: '',
+    phone: '',
+    address: '',
+    profilePicture: networkMember.profilePicture || '',
+    referralCode: networkMember.referralCode,
+    registrationDate: networkMember.joinDate || '',
+    kycStatus: 'pending',
+    kycDocuments: {},
+    bankDetails: { accountName: '', accountNumber: '', bankName: '', ifscCode: '' },
+  });
+  if (networkMember.children && networkMember.children.length > 0) {
+    if (networkMember.children[0]) {
+      users.push(...flattenNetworkMembersToUsers(networkMember.children[0], networkMember.referralCode, 'left'));
+    }
+    if (networkMember.children[1]) {
+      users.push(...flattenNetworkMembersToUsers(networkMember.children[1], networkMember.referralCode, 'right'));
+    }
+    // If more than 2 children, treat as extra (no position)
+    for (let i = 2; i < networkMember.children.length; i++) {
+      users.push(...flattenNetworkMembersToUsers(networkMember.children[i], networkMember.referralCode, undefined));
+    }
+  }
+  return users;
+};
+
+export const syncUsersFromNetworkTreeToJson = () => {
+  const users = flattenNetworkMembersToUsers(networkMembers);
+  const dbPath = path.resolve(__dirname, '../data/db.json');
+  const db = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+  db.users = users;
+  fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+  console.log('Users array in db.json updated from network tree!');
+};
+
+export const hasReachedTeamMatchingDailyCap = async (userId: string): Promise<boolean> => {
+  const commissionStructure = getCommissionStructure();
+  const dailyCap = commissionStructure.teamMatchingDailyCap || 20;
+  const userTransactions = await getUserTransactions(userId);
+  const today = new Date().toISOString().split('T')[0];
+  const todaysPairsCredited = userTransactions
+    .filter(t => t.type === 'team_matching' && t.status === 'completed' && t.date.startsWith(today))
+    .reduce((sum, t) => sum + (t.pairs || 0), 0);
+  return todaysPairsCredited >= dailyCap;
+};
+
+// Add this debug function at the end of the file
+export const printAllUsersNetworkStatus = async () => {
+  const allUsers = await getAllUsers();
+  console.log('--- All Users Network Status ---');
+  allUsers.forEach(user => {
+    console.log(`User: ${user.name} (${user.id}) | SponsorId: ${user.sponsorId} | Position: ${user.position} | Active: ${user.active}`);
+  });
+  console.log('--- End of Users List ---');
+};
+
+// Add this debug utility to seed left/right active users for demo/testing
+export const seedLeftRightActiveUsers = async () => {
+  const allUsers = await getAllUsers();
+  if (allUsers.length < 3) {
+    console.warn('Not enough users to seed left/right active users.');
+    return;
+  }
+  // Use the first user as sponsor
+  const sponsor = allUsers[0];
+  // Set the next two users as left and right under the sponsor
+  const leftUser = { ...allUsers[1], sponsorId: sponsor.distributorId, position: 'left' as 'left', active: true };
+  const rightUser = { ...allUsers[2], sponsorId: sponsor.distributorId, position: 'right' as 'right', active: true };
+
+  // Update users via backend API
+  await axios.put(`${serverUrl}/api/db/users/${leftUser.id}`, leftUser);
+  await axios.put(`${serverUrl}/api/db/users/${rightUser.id}`, rightUser);
+
+  // Optionally, update localStorage for immediate feedback
+  allUsers[1] = leftUser;
+  allUsers[2] = rightUser;
+  setToStorage(STORAGE_KEYS.USERS, allUsers);
+
+  console.log('Seeded left/right active users for sponsor:', sponsor.name);
+};
+
+// Debug utility: Print the full user objects for the first three users (sponsor, left, right)
+export const printFirstThreeUsersDetails = async () => {
+  const allUsers = await getAllUsers();
+  if (allUsers.length < 3) {
+    console.warn('Not enough users to print first three user details.');
+    return;
+  }
+  console.log('--- First Three Users Details ---');
+  console.log('Sponsor:', allUsers[0]);
+  console.log('Left:', allUsers[1]);
+  console.log('Right:', allUsers[2]);
+  console.log('--- End of First Three Users Details ---');
+};

@@ -594,7 +594,7 @@ const Network: React.FC = () => {
   const copyReferralLink = () => {
     if (!currentUser) return;
 
-    const referralUrl = `${window.location.origin}/register?ref=${currentUser.referralCode}`;
+    const referralUrl = `${window.location.origin}/register/${currentUser.referralCode}`;
     navigator.clipboard
       .writeText(referralUrl)
       .then(() => {
@@ -739,7 +739,7 @@ const Network: React.FC = () => {
               <input
                 type="text"
                 readOnly
-                value={`${window.location.origin}/register?ref=${referralCode}`}
+                value={`${window.location.origin}/register/${referralCode}`}
                 className="flex-1 p-2 text-sm border border-neutral-300 rounded-md bg-white"
               />
               <Button size="sm" variant="primary" onClick={copyReferralLink}>
@@ -1105,6 +1105,10 @@ const Network: React.FC = () => {
           </div>
         </Card>
       </div>
+<<<<<<< HEAD
+=======
+
+>>>>>>> 51080de (fixed user matching bonus)
       {/* Custom Animations and Effects */}
       <style>{`
         @keyframes floating {
